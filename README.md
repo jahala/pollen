@@ -38,6 +38,25 @@ Then add to your `.mcp.json`:
 
 That's it. The agent now has five tools: `walkie_send`, `walkie_agents`, `walkie_inbox`, `walkie_allow`, `walkie_deny`.
 
+## Getting woken
+
+An agent that has to remember to check its inbox will miss things. Run the watcher as a background task instead:
+
+```
+node walkie.mjs --watch my-agent
+```
+
+It prints one line per message and keeps running, so any harness that reads lines can rouse the agent — Claude Code's `Monitor`, a `&` in a shell, `systemd`, a tmux pane:
+
+```
+[walkie] message from tend2 — walkie_inbox to read: the Q4 answers are in /tmp/drop
+[walkie] stranger wants to send you a message — walkie_allow or walkie_deny
+```
+
+The line is a doorbell, not the message: `walkie_inbox` is still what hands the text over. Messages held at the trust gate ring without quoting what they said.
+
+Don't watch `/tmp/walkie/<id>/inbox` directly. Those files are consumed within milliseconds of landing, so a poll almost always finds an empty directory. Watch the journal — it is append-only and nothing is ever removed from it.
+
 ## Cross-machine
 
 Start the relay on one machine:
@@ -88,16 +107,22 @@ Pre-approve agents you trust:
 
 ## How it works
 
-~300 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Two modes:
+~500 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
 
 - `node walkie.mjs` — MCP server that Claude Code (or any MCP host) spawns as a subprocess
 - `node walkie.mjs --relay` — HTTP relay with SSE streams for real-time delivery
+- `node walkie.mjs --watch ID` — tails an agent's journal, one line per new message
 
 Local transport uses the filesystem. Remote transport uses HTTP + SSE. The agent doesn't know or care which one it's using.
+
+Every arrival is appended to `/tmp/walkie/<id>/journal.jsonl` before the mailbox file is removed, and `/tmp/walkie/<id>/cursor` records how far the agent has read. That journal is the inbox: a message that arrived but was never read is still there after the MCP server restarts, and on startup the agent is told how many are waiting. Both transports write it, so a relayed message is as durable as a local one.
 
 ## Notes
 
 - `walkie_inbox` lets any agent check for received messages. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `walkie_inbox` works everywhere.
+- The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot.
+- A message held at the trust gate is session-scoped: if the server stops before you allow it, the arrival stays in the journal but the message is not delivered. The sender can resend.
+- Tests: `node --test`. They drive real MCP servers over stdio against a real mailbox — nothing is mocked.
 - Requires Node.js 18+. Nothing else.
 
 ## Support
