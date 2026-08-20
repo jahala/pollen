@@ -167,6 +167,13 @@ function startAgent() {
   mkdirSync(join(DIR, ID), { recursive: true });
   let seq = readJournal(ID).pop()?.seq ?? 0;
 
+  // Knocks outlive a restart. The journal is what rings the gate, so the gate
+  // has to be rebuilt from it — otherwise --watch reports a message waiting on
+  // a human and walkie_allow has nothing to deliver.
+  for (const e of heldPending(ID)) {
+    pending.set(e.from, [...(pending.get(e.from) ?? []), { from: e.from, message: e.message, seq: e.seq }]);
+  }
+
   function record(from, message, status, resolves) {
     const entry = { seq: ++seq, ts: new Date().toISOString(), from, message, status };
     if (resolves !== undefined) entry.resolves = resolves;

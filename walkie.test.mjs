@@ -252,6 +252,29 @@ test("--watch rings for messages held at the trust gate", async () => {
   assert.equal(eyes.lines[0], "[walkie] 1 message held at the trust gate — walkie_allow or walkie_deny");
 });
 
+test("a knock held at the gate can still be allowed after a restart", async () => {
+  const yuri = agent("yuri");             // trusts nobody
+  const zoe = agent("zoe");
+  await Promise.all([yuri.ready(), zoe.ready()]);
+
+  await zoe.tool("walkie_send", { to: "yuri", message: "let me in" });
+  await waitFor("the knock to be journalled", () => journal("yuri").length === 1);
+
+  // The gate is rung by the journal, so it has to survive with the journal —
+  // otherwise the watcher reports a knock nobody can ever action.
+  await yuri.stop();
+  const revived = agent("yuri");
+  await revived.ready();
+
+  assert.match(await revived.tool("walkie_allow", { agent: "zoe" }), /has been delivered/);
+  assert.equal(await revived.tool("walkie_inbox"), "[zoe]: let me in");
+
+  const eyes = watcher("yuri");
+  await eyes.ready();
+  await sleep(300);
+  assert.deepEqual(eyes.lines, [], `settled knock still ringing: ${eyes.lines.join(" | ")}`);
+});
+
 test("a denied message is not rung out by --watch", async () => {
   const wes = agent("wes");
   const xena = agent("xena");

@@ -142,7 +142,7 @@ Every arrival is appended to `/tmp/walkie/<id>/journal.jsonl` before the mailbox
 
 - `walkie_inbox` lets any agent check for received messages. Claude Code agents also get automatic push via [channels](https://modelcontextprotocol.io/specification/2025-03-26/server/utilities/notifications#channels) (research preview), but `walkie_inbox` works everywhere.
 - The journal is append-only and never rotated. It lives under `/tmp`, which the OS clears on reboot.
-- A message held at the trust gate is session-scoped: if the server stops before you allow it, the arrival stays in the journal but the message is not delivered. The sender can resend.
+- A message held at the trust gate survives a restart — the gate is rebuilt from the journal, so a knock you were rung about is still there to allow or deny.
 - Tests: `node --test`. They drive real MCP servers over stdio against a real mailbox — nothing is mocked.
 - Requires Node.js 18+. Nothing else.
 
