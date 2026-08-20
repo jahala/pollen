@@ -60,6 +60,7 @@ function agent(id, env = {}) {
     ready: () => call("initialize", {}),
     tool: (name, args = {}) =>
       call("tools/call", { name, arguments: args }).then((r) => r.content[0].text),
+    alive: () => proc.exitCode === null && proc.signalCode === null,
     stop: () => { proc.kill(); return once(proc, "exit"); },
   };
 }
@@ -273,6 +274,18 @@ test("a knock held at the gate can still be allowed after a restart", async () =
   await eyes.ready();
   await sleep(300);
   assert.deepEqual(eyes.lines, [], `settled knock still ringing: ${eyes.lines.join(" | ")}`);
+});
+
+test("an unreachable relay fails the call, not the walkie", async () => {
+  const far = agent("far", { WALKIE_RELAY: "http://127.0.0.1:1" });
+  await far.ready();
+
+  const said = await far.tool("walkie_send", { to: "anyone", message: "hi" });
+  assert.match(said, /could not reach/i);
+  assert.ok(far.alive(), "the walkie died along with the request");
+
+  // Still serving afterwards — a failed send must not cost the agent its radio.
+  assert.equal(await far.tool("walkie_inbox"), "No new messages.");
 });
 
 test("a denied message is not rung out by --watch", async () => {

@@ -167,9 +167,8 @@ function startAgent() {
   mkdirSync(join(DIR, ID), { recursive: true });
   let seq = readJournal(ID).pop()?.seq ?? 0;
 
-  // Knocks outlive a restart. The journal is what rings the gate, so the gate
-  // has to be rebuilt from it — otherwise --watch reports a message waiting on
-  // a human and walkie_allow has nothing to deliver.
+  // The journal is what rings the gate, so the gate is rebuilt from it — a
+  // knock the watcher reports has to still be there to allow or deny.
   for (const e of heldPending(ID)) {
     pending.set(e.from, [...(pending.get(e.from) ?? []), { from: e.from, message: e.message, seq: e.seq }]);
   }
@@ -183,8 +182,17 @@ function startAgent() {
 
   // --- mcp protocol ---------------------------------------------------------
 
-  createInterface({ input: process.stdin, terminal: false }).on("line", (line) => {
-    if (line.trim()) handle(JSON.parse(line));
+  createInterface({ input: process.stdin, terminal: false }).on("line", async (line) => {
+    if (!line.trim()) return;
+    let msg;
+    try { msg = JSON.parse(line); } catch { return; }
+    try {
+      await handle(msg);
+    } catch (e) {
+      // Nothing a tool does may cost the agent its radio, and the caller is
+      // still owed an answer — an unanswered request hangs it forever.
+      if (msg.id !== undefined) reply(msg.id, text(`Request failed: ${e.message}`));
+    }
   });
 
   function send(msg) {
@@ -295,6 +303,9 @@ function startAgent() {
     async walkie_send({ to, message }) {
       const status = await tx.send(to, message);
       if (status === "unknown-agent") return text(`Agent "${to}" not found.`);
+      if (status === "unreachable") {
+        return text(`Could not reach the relay, so nothing was sent to ${to}.`);
+      }
       if (status === "pending") {
         return text(`Held at ${to}'s trust gate — ${to} must allow "${ID}" before this is delivered.`);
       }
@@ -379,9 +390,8 @@ function startAgent() {
       }
     }
 
-    // The receiver journals every arrival, and it does so before the mailbox
-    // file is gone — so its journal is the ack channel. No second protocol, no
-    // ack files: just read the record the receiver already keeps.
+    // The receiver journals every arrival before the mailbox file is gone, so
+    // its journal is the ack channel.
     async function settled(to, since, message) {
       const deadline = Date.now() + 1000;
       while (Date.now() < deadline) {
@@ -430,16 +440,20 @@ function startAgent() {
 
   function relayTransport(relay) {
     return {
+      // The trust gate runs in the receiver's process, on the far side of the
+      // relay, and its verdict has no route back here. Cross-machine senders
+      // learn the message left; not whether it was let in.
       async send(to, message) {
-        const res = await fetch(`${relay}/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ from: ID, to, message }),
-        });
-        // The trust gate runs in the receiver's process, on the far side of the
-        // relay, and its verdict has no route back here. Cross-machine senders
-        // learn the message left; not whether it was let in.
-        return res.ok ? "sent" : "unknown-agent";
+        try {
+          const res = await fetch(`${relay}/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ from: ID, to, message }),
+          });
+          return res.ok ? "sent" : "unreachable";
+        } catch {
+          return "unreachable";
+        }
       },
       async agents() {
         const res = await fetch(`${relay}/agents`);
@@ -447,6 +461,13 @@ function startAgent() {
       },
       listen(cb) {
         function connect() {
+          let reconnecting = false;
+          const retry = (e) => {
+            if (reconnecting) return; // end and error can both fire
+            reconnecting = true;
+            if (e) process.stderr.write(`walkie relay error: ${e.message}\n`);
+            setTimeout(connect, 1000);
+          };
           http.get(`${relay}/listen/${ID}`, (res) => {
             createInterface({ input: res }).on("line", (line) => {
               if (!line.startsWith("data: ")) return; // comments and frame breaks
@@ -455,12 +476,9 @@ function startAgent() {
                 cb(from, message);
               } catch {}
             });
-            res.on("end", () => setTimeout(connect, 1000));
-            res.on("error", (e) => {
-              process.stderr.write(`walkie relay error: ${e.message}\n`);
-              setTimeout(connect, 1000);
-            });
-          });
+            res.on("end", retry);
+            res.on("error", retry);
+          }).on("error", retry); // refused connection, bad DNS — reached before any response
         }
         connect();
       },
@@ -513,7 +531,6 @@ function startWatch(id) {
     // the text the human just rejected on the very channel they watch.
     if (e.status === "denied") return null;
     if (e.status === "pending") {
-      // The message itself stays behind the trust gate until it is allowed.
       return `[walkie] ${e.from} wants to send you a message — walkie_allow or walkie_deny`;
     }
     const preview = e.message.replace(/\s+/g, " ").trim();
@@ -546,8 +563,7 @@ function startWatch(id) {
     process.stdout.write(`[walkie] ${waiting} message${waiting === 1 ? "" : "s"} waiting — walkie_inbox to read\n`);
   }
 
-  // Messages stuck at the gate need a human, so they are the last thing that
-  // should go unmentioned — and they are not "waiting" in the readable sense.
+  // Counted apart from the above: these need a person, not a walkie_inbox.
   const held = heldPending(id).length;
   if (held) {
     process.stdout.write(`[walkie] ${held} message${held === 1 ? "" : "s"} held at the trust gate — walkie_allow or walkie_deny\n`);
