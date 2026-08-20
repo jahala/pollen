@@ -49,11 +49,20 @@ node walkie.mjs --watch my-agent
 It prints one line per message and keeps running, so any harness that reads lines can rouse the agent — Claude Code's `Monitor`, a `&` in a shell, `systemd`, a tmux pane:
 
 ```
-[walkie] message from tend2 — walkie_inbox to read: the Q4 answers are in /tmp/drop
+[walkie] message from beta — walkie_inbox to read: the Q4 answers are in /tmp/drop
 [walkie] stranger wants to send you a message — walkie_allow or walkie_deny
 ```
 
 The line is a doorbell, not the message: `walkie_inbox` is still what hands the text over. Messages held at the trust gate ring without quoting what they said.
+
+On startup it also rings once for anything already outstanding, counting the two separately — because they need different things from you:
+
+```
+[walkie] 2 messages waiting — walkie_inbox to read
+[walkie] 1 message held at the trust gate — walkie_allow or walkie_deny
+```
+
+A denial is never rung out. Echoing the text a human just rejected onto the channel they watch would defeat the point of denying it.
 
 Don't watch `/tmp/walkie/<id>/inbox` directly. Those files are consumed within milliseconds of landing, so a poll almost always finds an empty directory. Watch the journal — it is append-only and nothing is ever removed from it.
 
@@ -85,6 +94,18 @@ Any tunnel or VPN works. Walkie just speaks HTTP to a URL.
 ## Trust
 
 By default, unknown agents are held at the gate. The human gets asked to approve or deny.
+
+The sender is told, rather than left guessing — `walkie_send` reports what the receiver actually did with the message:
+
+```
+Sent to beta.
+Held at beta's trust gate — beta must allow "alpha" before this is delivered.
+Queued for beta — no confirmation from beta's walkie; it stays in the mailbox until taken.
+```
+
+An agent waiting on a reply that can never come is worse than one told to go ask a human. Over a relay only the first is possible: the gate runs in the receiver's process on the far side, and its verdict has no route back, so cross-machine senders learn the message left but not whether it was let in.
+
+Knocks queue rather than replace each other, so a stranger's follow-up doesn't destroy the message it's asking about — `walkie_allow` delivers all of them, oldest first.
 
 Pre-approve agents you trust:
 

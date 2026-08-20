@@ -23,6 +23,7 @@ import {
 } from "fs";
 import { createInterface } from "readline";
 import { join } from "path";
+import { setTimeout as sleep } from "timers/promises";
 import http from "http";
 
 const DIR = process.env.WALKIE_DIR ?? "/tmp/walkie";
@@ -141,6 +142,14 @@ function unread(id) {
   return readJournal(id).filter((e) => e.seq > cursor && e.status === "delivered");
 }
 
+// Arrivals still sitting at the trust gate. The journal never mutates, so an
+// allow or deny is its own entry pointing back at the pending one it settles.
+function heldPending(id) {
+  const entries = readJournal(id);
+  const settled = new Set(entries.map((e) => e.resolves).filter((s) => s != null));
+  return entries.filter((e) => e.status === "pending" && !settled.has(e.seq));
+}
+
 // =============================================================================
 // AGENT MODE
 // =============================================================================
@@ -153,14 +162,16 @@ function startAgent() {
   const trusted = new Set(
     (process.env.WALKIE_ALLOW ?? "").split(",").filter(Boolean)
   );
-  const pending = new Map(); // agent → { from, message }
+  const pending = new Map(); // agent → [{ from, message, seq }]
 
   mkdirSync(join(DIR, ID), { recursive: true });
   let seq = readJournal(ID).pop()?.seq ?? 0;
 
-  function record(from, message, status) {
+  function record(from, message, status, resolves) {
     const entry = { seq: ++seq, ts: new Date().toISOString(), from, message, status };
+    if (resolves !== undefined) entry.resolves = resolves;
     appendFileSync(journalPath(ID), JSON.stringify(entry) + "\n");
+    return entry.seq;
   }
 
   // --- mcp protocol ---------------------------------------------------------
@@ -275,8 +286,15 @@ function startAgent() {
 
   const toolHandlers = {
     async walkie_send({ to, message }) {
-      const ok = await tx.send(to, message);
-      return text(ok ? `Sent to ${to}.` : `Agent "${to}" not found.`);
+      const status = await tx.send(to, message);
+      if (status === "unknown-agent") return text(`Agent "${to}" not found.`);
+      if (status === "pending") {
+        return text(`Held at ${to}'s trust gate — ${to} must allow "${ID}" before this is delivered.`);
+      }
+      if (status === "queued") {
+        return text(`Queued for ${to} — no confirmation from ${to}'s walkie; it stays in the mailbox until taken.`);
+      }
+      return text(`Sent to ${to}.`);
     },
     async walkie_agents() {
       const list = await tx.agents();
@@ -284,19 +302,27 @@ function startAgent() {
     },
     async walkie_allow({ agent }) {
       trusted.add(agent);
-      const held = pending.get(agent);
-      if (held) {
+      const held = pending.get(agent) ?? [];
+      if (held.length) {
         pending.delete(agent);
-        record(held.from, held.message, "delivered");
-        notify(held.message, { from: held.from });
-        return text(`Allowed ${agent}. Their message has been delivered.`);
+        for (const m of held) {
+          record(m.from, m.message, "delivered", m.seq);
+          notify(m.message, { from: m.from });
+        }
+        const what = held.length === 1 ? "Their message has" : `Their ${held.length} messages have`;
+        return text(`Allowed ${agent}. ${what} been delivered.`);
       }
       return text(`Allowed ${agent}.`);
     },
     async walkie_deny({ agent }) {
-      const held = pending.get(agent);
+      const held = pending.get(agent) ?? [];
       pending.delete(agent);
-      return text(held ? `Denied and dropped message from ${agent}.` : `Nothing pending from ${agent}.`);
+      // Settle each pending entry so the gate stops counting them, without
+      // repeating the text of something the human just rejected.
+      for (const m of held) record(m.from, "", "denied", m.seq);
+      if (!held.length) return text(`Nothing pending from ${agent}.`);
+      const n = held.length === 1 ? "message" : `${held.length} messages`;
+      return text(`Denied and dropped ${n} from ${agent}.`);
     },
     async walkie_inbox() {
       const msgs = unread(ID);
@@ -313,8 +339,10 @@ function startAgent() {
       record(from, message, "delivered");
       notify(message, { from });
     } else {
-      record(from, message, "pending");
-      pending.set(from, { from, message });
+      // Every knock is kept. Holding only the latest would mean a stranger's
+      // follow-up destroys the message it is asking about.
+      const seq = record(from, message, "pending");
+      pending.set(from, [...(pending.get(from) ?? []), { from, message, seq }]);
       notify(
         `Agent "${from}" wants to send you a message. Use walkie_allow or walkie_deny.`,
         { from, status: "pending" }
@@ -344,10 +372,28 @@ function startAgent() {
       }
     }
 
+    // The receiver journals every arrival, and it does so before the mailbox
+    // file is gone — so its journal is the ack channel. No second protocol, no
+    // ack files: just read the record the receiver already keeps.
+    async function settled(to, since, message) {
+      const deadline = Date.now() + 1000;
+      while (Date.now() < deadline) {
+        const mine = readJournal(to).find(
+          (e) => e.seq > since && e.from === ID && e.message === message,
+        );
+        if (mine) return mine.status;
+        await sleep(25);
+      }
+      return "queued";
+    }
+
     return {
       async send(to, message) {
         const target = join(DIR, to, "inbox");
-        if (!existsSync(target)) return false;
+        if (!existsSync(target)) return "unknown-agent";
+        // Baseline the receiver's journal before handing the message over, so
+        // whatever turns up afterwards is provably ours and not an earlier one.
+        const since = readJournal(to).pop()?.seq ?? 0;
         const name = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}_from_${ID}`;
         // Write beside the mailbox, then rename in. The receiver is watching
         // this directory, and rename is the only way to put a whole file in
@@ -355,7 +401,7 @@ function startAgent() {
         const part = join(target, `.${name}.part`);
         writeFileSync(part, message);
         renameSync(part, join(target, `${name}.msg`));
-        return true;
+        return settled(to, since, message);
       },
       async agents() {
         return readdirSync(DIR).filter(
@@ -383,7 +429,10 @@ function startAgent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ from: ID, to, message }),
         });
-        return res.ok;
+        // The trust gate runs in the receiver's process, on the far side of the
+        // relay, and its verdict has no route back here. Cross-machine senders
+        // learn the message left; not whether it was let in.
+        return res.ok ? "sent" : "unknown-agent";
       },
       async agents() {
         const res = await fetch(`${relay}/agents`);
@@ -453,6 +502,9 @@ function startWatch(id) {
   let lastTs = last?.ts;
 
   function line(e) {
+    // A denial is a settlement entry, not an arrival. Ringing it out would put
+    // the text the human just rejected on the very channel they watch.
+    if (e.status === "denied") return null;
     if (e.status === "pending") {
       // The message itself stays behind the trust gate until it is allowed.
       return `[walkie] ${e.from} wants to send you a message — walkie_allow or walkie_deny`;
@@ -475,7 +527,8 @@ function startWatch(id) {
       if (e.seq <= lastSeq) continue;
       lastSeq = e.seq;
       lastTs = e.ts;
-      process.stdout.write(line(e) + "\n");
+      const l = line(e);
+      if (l) process.stdout.write(l + "\n");
     }
   }
 
@@ -484,6 +537,13 @@ function startWatch(id) {
   const waiting = unread(id).length;
   if (waiting) {
     process.stdout.write(`[walkie] ${waiting} message${waiting === 1 ? "" : "s"} waiting — walkie_inbox to read\n`);
+  }
+
+  // Messages stuck at the gate need a human, so they are the last thing that
+  // should go unmentioned — and they are not "waiting" in the readable sense.
+  const held = heldPending(id).length;
+  if (held) {
+    process.stdout.write(`[walkie] ${held} message${held === 1 ? "" : "s"} held at the trust gate — walkie_allow or walkie_deny\n`);
   }
 
   watch(journal, pump);

@@ -206,6 +206,68 @@ test("messages route through the relay, journal and all", async () => {
   assert.equal(await nia.tool("walkie_inbox"), "[otto]: over the air");
 });
 
+test("the sender is told when a message is held at the trust gate", async () => {
+  const opal = agent("opal");            // trusts nobody
+  const pete = agent("pete");
+  await Promise.all([opal.ready(), pete.ready()]);
+
+  assert.equal(
+    await pete.tool("walkie_send", { to: "opal", message: "knock knock" }),
+    `Held at opal's trust gate — opal must allow "pete" before this is delivered.`,
+  );
+});
+
+test("the sender is told when the receiver's walkie is not running", async () => {
+  const quinn = agent("quinn", { WALKIE_ALLOW: "rosa" });
+  const rosa = agent("rosa", { WALKIE_ALLOW: "quinn" });
+  await Promise.all([quinn.ready(), rosa.ready()]);
+
+  await quinn.stop();                    // mailbox stays on disk, nobody home
+  assert.match(await rosa.tool("walkie_send", { to: "quinn", message: "anyone there" }), /^Queued for quinn/);
+});
+
+test("a second message from a stranger does not overwrite the first", async () => {
+  const sam = agent("sam");
+  const tess = agent("tess");
+  await Promise.all([sam.ready(), tess.ready()]);
+
+  await tess.tool("walkie_send", { to: "sam", message: "first" });
+  await tess.tool("walkie_send", { to: "sam", message: "second" });
+  await waitFor("both to be journalled", () => journal("sam").length === 2);
+
+  await sam.tool("walkie_allow", { agent: "tess" });
+  assert.equal(await sam.tool("walkie_inbox"), "[tess]: first\n[tess]: second");
+});
+
+test("--watch rings for messages held at the trust gate", async () => {
+  const uma = agent("uma");
+  const vic = agent("vic");
+  await Promise.all([uma.ready(), vic.ready()]);
+
+  await vic.tool("walkie_send", { to: "uma", message: "let me in" });
+  await waitFor("the message to be journalled", () => journal("uma").length === 1);
+
+  const eyes = watcher("uma");           // armed after the fact — must not start deaf
+  await waitFor("a watch line", () => eyes.lines.length === 1);
+  assert.equal(eyes.lines[0], "[walkie] 1 message held at the trust gate — walkie_allow or walkie_deny");
+});
+
+test("a denied message is not rung out by --watch", async () => {
+  const wes = agent("wes");
+  const xena = agent("xena");
+  await Promise.all([wes.ready(), xena.ready()]);
+
+  const eyes = watcher("wes");
+  await eyes.ready();
+
+  await xena.tool("walkie_send", { to: "wes", message: "sensitive payload" });
+  await waitFor("the knock", () => eyes.lines.length === 1);
+
+  await wes.tool("walkie_deny", { agent: "xena" });
+  await sleep(300);                      // give a wrong implementation time to leak it
+  assert.equal(eyes.lines.length, 1, `denied text leaked: ${eyes.lines.join(" | ")}`);
+});
+
 test("--watch survives the journal being wiped under it", async () => {
   const lena = agent("lena", { WALKIE_ALLOW: "milo" });
   const milo = agent("milo", { WALKIE_ALLOW: "lena" });
