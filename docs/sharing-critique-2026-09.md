@@ -3,6 +3,18 @@
 Status: critique of `channels-design-2026-09.md` and `sharing-implementation-2026-09.md`,
 written against my own proposals. September 2026.
 
+> **Correction, added after review.** Section 0 below leads on there being eight messages
+> on this machine and treats that as near-disqualifying. That reasoning is circular: the
+> volume is eight *because no mechanism exists* and because multi-agent work is only now
+> being wired up. Demand for a bridge is not measured by counting swimmers. Worse, the
+> re-read of the roleplay in section 1 inherits the same bias — every past event was handled
+> 1:1 because 1:1 was the only thing available, so "only one of five needed something new"
+> was never a finding about the design.
+>
+> The specific defects in sections 2 to 10 stand; the verdict does not. Local volume is the
+> wrong instrument entirely, and the interesting case — many agents, several machines, more
+> than one vendor — is addressed in `sharing-at-scale-2026-09.md`.
+
 ## 0. The fact I should have checked first
 
 Every journal on this machine, across the entire life of this tool:
