@@ -1,21 +1,22 @@
 #!/usr/bin/env node
-// walkie-clawkie — push-to-talk between agents. zero deps.
+// pollen — peer messaging between agents. zero deps.
 //
-//   node walkie.mjs             MCP server (agent-side)
-//   node walkie.mjs --relay     HTTP relay (cross-machine radio tower)
-//   node walkie.mjs --watch ID  tail an agent's journal — one line per new message
+//   node pollen.mjs             MCP server (agent-side)
+//   node pollen.mjs --relay     HTTP relay (cross-machine hop)
+//   node pollen.mjs --version   print the version
+//   node pollen.mjs --watch ID  tail an agent's journal — one line per new message
 //
 // Agent mode env:
-//   WALKIE_ID       required — agent name
-//   WALKIE_RELAY    optional — relay URL for cross-machine
-//   WALKIE_ALLOW    optional — comma-separated trusted agent IDs
-//   WALKIE_DIR      optional — mailbox root (default /tmp/walkie)
+//   POLLEN_ID       required — agent name
+//   POLLEN_RELAY    optional — relay URL for cross-machine
+//   POLLEN_ALLOW    optional — comma-separated trusted agent IDs
+//   POLLEN_DIR      optional — mailbox root (default /tmp/pollen)
 //
 // Relay mode env:
-//   WALKIE_PORT     optional — listen port (default 4747)
+//   POLLEN_PORT     optional — listen port (default 4747)
 //
 // Watch mode env:
-//   WALKIE_DIR      optional — mailbox root (default /tmp/walkie)
+//   POLLEN_DIR      optional — mailbox root (default /tmp/pollen)
 //
 import {
   watch, mkdirSync, readdirSync, readFileSync, appendFileSync,
@@ -26,9 +27,12 @@ import { join } from "path";
 import { setTimeout as sleep } from "timers/promises";
 import http from "http";
 
-const DIR = process.env.WALKIE_DIR ?? "/tmp/walkie";
+const VERSION = "0.1.0";
+const DIR = process.env.POLLEN_DIR ?? "/tmp/pollen";
 
-if (process.argv.includes("--relay")) {
+if (process.argv.includes("--version")) {
+  process.stdout.write(`pollen ${VERSION}\n`);
+} else if (process.argv.includes("--relay")) {
   startRelay();
 } else if (process.argv.includes("--watch")) {
   startWatch(process.argv[process.argv.indexOf("--watch") + 1]);
@@ -41,7 +45,7 @@ if (process.argv.includes("--relay")) {
 // =============================================================================
 
 function startRelay() {
-  const PORT = parseInt(process.env.WALKIE_PORT ?? "4747");
+  const PORT = parseInt(process.env.POLLEN_PORT ?? "4747");
   const listeners = new Map(); // id → (from, message) => void
   const queues = new Map();    // id → [{ from, message }]
 
@@ -102,9 +106,9 @@ function startRelay() {
     res.end("not found");
   });
 
-  // Report the port actually bound, so WALKIE_PORT=0 is usable.
+  // Report the port actually bound, so POLLEN_PORT=0 is usable.
   server.listen(PORT, () => {
-    process.stderr.write(`walkie relay on :${server.address().port}\n`);
+    process.stderr.write(`pollen relay on :${server.address().port}\n`);
   });
 }
 
@@ -155,12 +159,12 @@ function heldPending(id) {
 // =============================================================================
 
 function startAgent() {
-  const RELAY = process.env.WALKIE_RELAY;
-  const ID = process.env.WALKIE_ID;
-  if (!ID) { process.stderr.write("WALKIE_ID is required\n"); process.exit(1); }
+  const RELAY = process.env.POLLEN_RELAY;
+  const ID = process.env.POLLEN_ID;
+  if (!ID) { process.stderr.write("POLLEN_ID is required. pollen cannot start without an id; set it in the env of your .mcp.json entry.\n"); process.exit(1); }
 
   const trusted = new Set(
-    (process.env.WALKIE_ALLOW ?? "").split(",").filter(Boolean)
+    (process.env.POLLEN_ALLOW ?? "").split(",").filter(Boolean)
   );
   const pending = new Map(); // agent → [{ from, message, seq }]
 
@@ -221,15 +225,15 @@ function startAgent() {
           tools: {},
           experimental: { "claude/channel": {} },
         },
-        serverInfo: { name: `walkie-${ID}`, version: "0.1.0" },
+        serverInfo: { name: `pollen-${ID}`, version: VERSION },
         instructions: [
-          `You are agent "${ID}". You have a walkie-talkie.`,
+          `You are agent "${ID}", a peer on pollen.`,
           `Incoming messages appear as <channel> tags with a "from" attribute.`,
-          `Use walkie_send to talk to other agents. Use walkie_agents to see who's around.`,
-          `Use walkie_inbox to check for replies. If an unknown agent tries to contact you, ask the user before calling walkie_allow or walkie_deny.`,
-          `Do not poll for messages. Run "node walkie.mjs --watch ${ID}" as a background task in your harness — it prints one line the moment anything lands, then you call walkie_inbox to read it.`,
-          `To reach agents on other machines: run "node walkie.mjs --relay" then expose it with "cloudflared tunnel --url http://localhost:4747" (free, no account needed).`,
-          `Give the resulting URL to the user so they can pass it to the remote agent as WALKIE_RELAY.`,
+          `Use pollen_send to reach another peer. Use pollen_agents to see who is reachable.`,
+          `Use pollen_inbox to read what has arrived. A stranger is held at the gate: ask the user before calling pollen_allow or pollen_deny.`,
+          `Do not poll for messages. Run "node pollen.mjs --watch ${ID}" as a background task in your harness — it rings one line the moment anything lands, then you call pollen_inbox to read it.`,
+          `To reach peers on other machines: run "node pollen.mjs --relay" then expose it with "cloudflared tunnel --url http://localhost:4747" (free, no account needed).`,
+          `Give the resulting URL to the user so they can pass it to the remote peer as POLLEN_RELAY.`,
         ].join(" "),
       });
     }
@@ -250,47 +254,47 @@ function startAgent() {
 
   const TOOLS = [
     {
-      name: "walkie_send",
-      description: "Send a message to another agent",
+      name: "pollen_send",
+      description: "Send a message to another peer",
       inputSchema: {
         type: "object",
         properties: {
-          to: { type: "string", description: "Target agent ID" },
+          to: { type: "string", description: "Peer id to reach" },
           message: { type: "string", description: "The message" },
         },
         required: ["to", "message"],
       },
     },
     {
-      name: "walkie_agents",
-      description: "List all agents on the walkie-talkie",
+      name: "pollen_agents",
+      description: "List the peers you can reach",
       inputSchema: { type: "object", properties: {} },
     },
     {
-      name: "walkie_allow",
-      description: "Allow a pending agent to talk to you",
+      name: "pollen_allow",
+      description: "Allow a peer held at the gate to reach you",
       inputSchema: {
         type: "object",
         properties: {
-          agent: { type: "string", description: "Agent ID to allow" },
+          agent: { type: "string", description: "Peer id to allow" },
         },
         required: ["agent"],
       },
     },
     {
-      name: "walkie_deny",
-      description: "Deny a pending agent's message",
+      name: "pollen_deny",
+      description: "Deny a peer held at the gate and drop their message",
       inputSchema: {
         type: "object",
         properties: {
-          agent: { type: "string", description: "Agent ID to deny" },
+          agent: { type: "string", description: "Peer id to deny" },
         },
         required: ["agent"],
       },
     },
     {
-      name: "walkie_inbox",
-      description: "Check for received messages",
+      name: "pollen_inbox",
+      description: "Read the messages that have arrived",
       inputSchema: { type: "object", properties: {} },
     },
   ];
@@ -300,25 +304,25 @@ function startAgent() {
   }
 
   const toolHandlers = {
-    async walkie_send({ to, message }) {
+    async pollen_send({ to, message }) {
       const status = await tx.send(to, message);
-      if (status === "unknown-agent") return text(`Agent "${to}" not found.`);
+      if (status === "unknown-agent") return text(`No mailbox for "${to}". The message was not sent. Check the id with pollen_agents.`);
       if (status === "unreachable") {
-        return text(`Could not reach the relay, so nothing was sent to ${to}.`);
+        return text(`pollen could not reach the relay. The message was not delivered to ${to}. Retry, or send it to a local peer.`);
       }
       if (status === "pending") {
         return text(`Held at ${to}'s trust gate — ${to} must allow "${ID}" before this is delivered.`);
       }
       if (status === "queued") {
-        return text(`Queued for ${to} — no confirmation from ${to}'s walkie; it stays in the mailbox until taken.`);
+        return text(`Queued for ${to} — no confirmation from ${to}'s pollen; it stays in the mailbox until taken.`);
       }
       return text(`Sent to ${to}.`);
     },
-    async walkie_agents() {
+    async pollen_agents() {
       const list = await tx.agents();
-      return text(list.join(", ") || "Nobody here.");
+      return text(list.join(", ") || "No peers reachable.");
     },
-    async walkie_allow({ agent }) {
+    async pollen_allow({ agent }) {
       trusted.add(agent);
       const held = pending.get(agent) ?? [];
       if (held.length) {
@@ -332,7 +336,7 @@ function startAgent() {
       }
       return text(`Allowed ${agent}.`);
     },
-    async walkie_deny({ agent }) {
+    async pollen_deny({ agent }) {
       const held = pending.get(agent) ?? [];
       pending.delete(agent);
       // Settle each pending entry so the gate stops counting them, without
@@ -342,7 +346,7 @@ function startAgent() {
       const n = held.length === 1 ? "message" : `${held.length} messages`;
       return text(`Denied and dropped ${n} from ${agent}.`);
     },
-    async walkie_inbox() {
+    async pollen_inbox() {
       const msgs = unread(ID);
       if (!msgs.length) return text("No new messages.");
       writeFileSync(cursorPath(ID), String(msgs.at(-1).seq));
@@ -362,7 +366,7 @@ function startAgent() {
       const seq = record(from, message, "pending");
       pending.set(from, [...(pending.get(from) ?? []), { from, message, seq }]);
       notify(
-        `Agent "${from}" wants to send you a message. Use walkie_allow or walkie_deny.`,
+        `"${from}" is knocking. Use pollen_allow or pollen_deny.`,
         { from, status: "pending" }
       );
     }
@@ -386,7 +390,7 @@ function startAgent() {
         unlinkSync(filepath);
       } catch (e) {
         if (e.code === "ENOENT") return; // already taken
-        process.stderr.write(`walkie: kept ${filename}, could not deliver it: ${e.message}\n`);
+        process.stderr.write(`pollen: kept ${filename}, could not deliver it: ${e.message}\n`);
       }
     }
 
@@ -465,7 +469,7 @@ function startAgent() {
           const retry = (e) => {
             if (reconnecting) return; // end and error can both fire
             reconnecting = true;
-            if (e) process.stderr.write(`walkie relay error: ${e.message}\n`);
+            if (e) process.stderr.write(`pollen relay error: ${e.message}\n`);
             setTimeout(connect, 1000);
           };
           http.get(`${relay}/listen/${ID}`, (res) => {
@@ -495,7 +499,7 @@ function startAgent() {
   const carried = unread(ID).length;
   if (carried) {
     notify(
-      `${carried} unread message${carried === 1 ? "" : "s"} from a previous session. Use walkie_inbox to read.`,
+      `${carried} unread message${carried === 1 ? "" : "s"} from a previous session. Use pollen_inbox to read.`,
       { status: "unread" }
     );
   }
@@ -514,7 +518,7 @@ function startAgent() {
 
 function startWatch(id) {
   if (!id) {
-    process.stderr.write("usage: node walkie.mjs --watch <agent-id>\n");
+    process.stderr.write("usage: node pollen.mjs --watch <agent-id>\n");
     process.exit(1);
   }
 
@@ -531,11 +535,11 @@ function startWatch(id) {
     // the text the human just rejected on the very channel they watch.
     if (e.status === "denied") return null;
     if (e.status === "pending") {
-      return `[walkie] ${e.from} wants to send you a message — walkie_allow or walkie_deny`;
+      return `[pollen] ${e.from} is knocking — pollen_allow or pollen_deny`;
     }
     const preview = e.message.replace(/\s+/g, " ").trim();
     const short = preview.length > 120 ? preview.slice(0, 119) + "…" : preview;
-    return `[walkie] message from ${e.from} — walkie_inbox to read: ${short}`;
+    return `[pollen] message from ${e.from} — pollen_inbox to read: ${short}`;
   }
 
   function pump() {
@@ -560,16 +564,16 @@ function startWatch(id) {
   // starts deaf — a count, not a transcript, however long the agent was away.
   const waiting = unread(id).length;
   if (waiting) {
-    process.stdout.write(`[walkie] ${waiting} message${waiting === 1 ? "" : "s"} waiting — walkie_inbox to read\n`);
+    process.stdout.write(`[pollen] ${waiting} message${waiting === 1 ? "" : "s"} waiting — pollen_inbox to read\n`);
   }
 
-  // Counted apart from the above: these need a person, not a walkie_inbox.
+  // Counted apart from the above: these need a person, not a pollen_inbox.
   const held = heldPending(id).length;
   if (held) {
-    process.stdout.write(`[walkie] ${held} message${held === 1 ? "" : "s"} held at the trust gate — walkie_allow or walkie_deny\n`);
+    process.stdout.write(`[pollen] ${held} knock${held === 1 ? "" : "s"} waiting at the gate — pollen_allow or pollen_deny\n`);
   }
 
   watch(journal, pump);
   setInterval(pump, 1000); // safety net — fs.watch misses appends on some filesystems
-  process.stderr.write(`walkie watching ${id}\n`);
+  process.stderr.write(`pollen watching ${id}\n`);
 }
