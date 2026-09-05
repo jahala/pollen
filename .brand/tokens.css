@@ -1,0 +1,106 @@
+/* plotplot design tokens — generated from .brand/*.md (canonical). Regenerate via /petals update.
+   Import this file and reference the variables; never hard-code brand values. */
+
+:root {
+  /* color — shared family palette */
+  --pp-primary:      #357E2C;
+  --pp-primary-deep: #2C6B2A;
+  --pp-leaf:         #4A9E3F;
+  --pp-forest:       #214A2C;
+  --pp-accent:       #E89227;
+  --pp-amber-ink:    #A86518;
+  --pp-text:         #3A2718;
+  --pp-text-soft:    #786148;
+  --pp-bg:           #FAF5E9;
+  --pp-bg-band:      #F2EAD6;
+  --pp-bg-artifact:  #FCFAF2;
+  --pp-surface:      #F5EEDD;
+  --pp-border:       #E2D8C0;
+
+  /* color — semantic */
+  --pp-healthy: #46913C;
+  --pp-caution: #B0741C;
+  --pp-error:   #BC4126;
+  --pp-info:    #3F7186;
+  --pp-muted:   #9A8C72;
+
+  /* color — product accents / blooms */
+  --pp-tilth:   #4E88A6;
+  --pp-tend:    #D6502F;
+  --pp-petals:  #E588A0;
+  --pp-pleach:  #97539B;
+  --pp-umbel:   #E89227;
+  --pp-copeca:  #1F8A7B;
+  --pp-pollen:  #C8B330;
+
+  /* color — the bloom as a word (pollen is display-only on paper) */
+  --pp-pollen-ink: #7E6A08;
+
+  /* color — soil-night terminal */
+  --pp-term-bg:      #1C1610;
+  --pp-term-surface: #262019;
+  --pp-term-border:  #403628;
+  --pp-term-green:   #84C56A;
+  --pp-term-sun:     #F2A93B;
+  --pp-term-text:    #F3ECD9;
+
+  /* type */
+  --pp-font-heading: 'Fraunces', Georgia, serif;
+  --pp-font-body:    'Hanken Grotesk', system-ui, sans-serif;
+  --pp-font-code:    'JetBrains Mono', monospace;
+
+  /* space — 4px grid */
+  --pp-space-4xs: 4px;
+  --pp-space-3xs: 8px;
+  --pp-space-2xs: 12px;
+  --pp-space-xs:  16px;
+  --pp-space-sm:  24px;
+  --pp-space-md:  32px;
+  --pp-space-lg:  48px;
+  --pp-space-xl:  64px;
+  --pp-space-2xl: 96px;
+  --pp-space-3xl: 128px;
+
+  /* layout */
+  --pp-container-max: 1200px;
+  --pp-gutter:        32px;
+
+  /* radius */
+  --pp-radius-tail: 2px;
+  --pp-radius-xs:   3px;
+  --pp-radius-sm:   6px;
+  --pp-radius-md:   8px;
+  --pp-radius-lg:   10px;
+  --pp-radius-xl:   12px;
+  --pp-radius-full: 999px;
+
+  /* stroke */
+  --pp-stroke-hairline: 1px;
+  --pp-stroke-emphasis: 1.5px;
+  --pp-stroke-rule:     2px;
+
+  /* shadow — ink-tinted */
+  --pp-shadow-rest:  0 1px 0 #E2D8C0, 0 12px 40px -16px rgba(58, 39, 24, 0.35);
+  --pp-shadow-lift:  0 2px 4px rgba(58, 39, 24, 0.05), 0 14px 32px rgba(58, 39, 24, 0.08);
+  --pp-shadow-float: 0 2px 6px rgba(58, 39, 24, 0.07), 0 18px 44px rgba(58, 39, 24, 0.12);
+
+  /* motion */
+  --pp-ease-petal:   cubic-bezier(0.22, 1, 0.36, 1);
+  --pp-dur-unfold:   0.8s;
+  --pp-dur-micro:    0.18s;
+  --pp-stagger-step: 0.1s;
+}
+
+[data-theme="dark"] {
+  --pp-primary:   #84C56A;
+  --pp-accent:    #F2A93B;
+  --pp-leaf:      #9FD08A;
+  --pp-text:      #F3ECD9;
+  --pp-text-soft: #C9BBA0;
+  --pp-bg:        #1C1610;
+  --pp-bg-band:   #211A12;
+  --pp-surface:   #262019;
+  --pp-border:    #403628;
+  --pp-pollen:     #D9C44A;
+  --pp-pollen-ink: #D9C44A;
+}
