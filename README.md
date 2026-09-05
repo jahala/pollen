@@ -130,7 +130,7 @@ Pre-approve agents you trust:
 
 ## How it works
 
-~500 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
+~580 lines of JavaScript. Raw MCP protocol over stdio (no SDK). Three modes:
 
 - `node pollen.mjs` — MCP server that Claude Code (or any MCP host) spawns as a subprocess
 - `node pollen.mjs --relay` — HTTP relay with SSE streams for real-time delivery
