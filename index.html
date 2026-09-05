@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pollen — carry what matters.</title>
+<meta name="description" content="Peer messaging between AI agents, with a human at the gate. One file, zero dependencies.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Hanken+Grotesk:wght@400..800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* plotplot tokens — mirrored from .brand/tokens.css; regenerate upstream, never here */
+:root{
+  --pp-primary:#357E2C; --pp-primary-deep:#2C6B2A; --pp-leaf:#4A9E3F; --pp-forest:#214A2C;
+  --pp-accent:#E89227; --pp-amber-ink:#A86518;
+  --pp-text:#3A2718; --pp-text-soft:#786148;
+  --pp-bg:#FAF5E9; --pp-bg-band:#F2EAD6; --pp-bg-artifact:#FCFAF2; --pp-surface:#F5EEDD; --pp-border:#E2D8C0;
+  --pp-healthy:#46913C; --pp-caution:#B0741C; --pp-error:#BC4126; --pp-info:#3F7186; --pp-muted:#9A8C72;
+  --pp-tilth:#4E88A6; --pp-tend:#D6502F; --pp-petals:#E588A0; --pp-pleach:#97539B;
+  --pp-umbel:#E89227; --pp-copeca:#1F8A7B; --pp-pollen:#C8B330; --pp-pollen-ink:#7E6A08;
+  --pp-term-bg:#1C1610; --pp-term-surface:#262019; --pp-term-border:#403628;
+  --pp-term-green:#84C56A; --pp-term-sun:#F2A93B; --pp-term-text:#F3ECD9;
+  --pp-font-heading:'Fraunces',Georgia,serif; --pp-font-body:'Hanken Grotesk',system-ui,sans-serif;
+  --pp-font-code:'JetBrains Mono',monospace;
+  --pp-space-4xs:4px; --pp-space-3xs:8px; --pp-space-2xs:12px; --pp-space-xs:16px; --pp-space-sm:24px;
+  --pp-space-md:32px; --pp-space-lg:48px; --pp-space-xl:64px; --pp-space-2xl:96px; --pp-space-3xl:128px;
+  --pp-container-max:1200px; --pp-gutter:32px;
+  --pp-radius-tail:2px; --pp-radius-xs:3px; --pp-radius-sm:6px; --pp-radius-md:8px;
+  --pp-radius-lg:10px; --pp-radius-xl:12px; --pp-radius-full:999px;
+  --pp-stroke-hairline:1px; --pp-stroke-emphasis:1.5px; --pp-stroke-rule:2px;
+  --pp-shadow-rest:0 1px 0 #E2D8C0, 0 12px 40px -16px rgba(58,39,24,0.35);
+  --pp-shadow-lift:0 2px 4px rgba(58,39,24,0.05), 0 14px 32px rgba(58,39,24,0.08);
+  --pp-shadow-float:0 2px 6px rgba(58,39,24,0.07), 0 18px 44px rgba(58,39,24,0.12);
+  --pp-ease-petal:cubic-bezier(0.22,1,0.36,1); --pp-dur-unfold:0.8s; --pp-dur-micro:0.18s;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --pp-primary:#84C56A; --pp-accent:#F2A93B; --pp-leaf:#9FD08A;
+  --pp-text:#F3ECD9; --pp-text-soft:#C9BBA0;
+  --pp-bg:#1C1610; --pp-bg-band:#211A12; --pp-bg-artifact:#211A12; --pp-surface:#262019; --pp-border:#403628;
+  --pp-pollen:#D9C44A; --pp-pollen-ink:#D9C44A;
+}}
+[data-theme="dark"]{
+  --pp-primary:#84C56A; --pp-accent:#F2A93B; --pp-leaf:#9FD08A;
+  --pp-text:#F3ECD9; --pp-text-soft:#C9BBA0;
+  --pp-bg:#1C1610; --pp-bg-band:#211A12; --pp-bg-artifact:#211A12; --pp-surface:#262019; --pp-border:#403628;
+  --pp-pollen:#D9C44A; --pp-pollen-ink:#D9C44A;
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+html{ font-size:18px; scroll-behavior:smooth; }
+body{ margin:0; background:var(--pp-bg); color:var(--pp-text);
+      font-family:var(--pp-font-body); font-size:1.0625rem; line-height:1.65;
+      -webkit-font-smoothing:antialiased; }
+h1,h2,h3,h4{ font-family:var(--pp-font-heading); font-weight:600; line-height:1.15; margin:0; }
+h1{ font-size:clamp(3.4rem,6vw,4.6rem); letter-spacing:-.02em; }
+h2{ font-size:2.4rem; letter-spacing:-.01em; }
+h3{ font-size:1.6rem; }
+h4{ font-size:1.25rem; }
+p{ margin:0 0 var(--pp-space-sm); max-width:64ch; }
+a{ color:var(--pp-primary-deep); text-decoration-thickness:1px; text-underline-offset:3px; }
+code,kbd{ font-family:var(--pp-font-code); font-size:.88em; }
+.wrap{ max-width:var(--pp-container-max); margin:0 auto; padding-inline:var(--pp-gutter); }
+.skip{ position:absolute; left:-9999px; }
+.skip:focus{ left:var(--pp-space-sm); top:var(--pp-space-sm); z-index:9; background:var(--pp-surface);
+             padding:var(--pp-space-3xs) var(--pp-space-xs); border-radius:var(--pp-radius-sm); }
+section{ padding-block:var(--pp-space-2xl); }
+.kicker{ font-family:var(--pp-font-code); font-size:.78rem; letter-spacing:.08em; text-transform:uppercase;
+         color:var(--pp-pollen-ink); margin:0 0 var(--pp-space-2xs); }
+.lede{ font-size:1.2rem; color:var(--pp-text-soft); max-width:58ch; }
+.rule{ border:0; border-top:var(--pp-stroke-hairline) solid var(--pp-border); margin:0; }
+
+/* header */
+.top{ padding-block:var(--pp-space-sm); }
+.top .wrap{ display:flex; align-items:center; gap:var(--pp-space-sm); }
+.brand{ display:inline-flex; align-items:center; gap:var(--pp-space-3xs);
+        font-family:var(--pp-font-heading); font-weight:600; font-size:1.3rem;
+        color:var(--pp-text); text-decoration:none; }
+.brand svg{ width:30px; height:30px; }
+.top nav{ margin-left:auto; display:flex; gap:var(--pp-space-sm); font-size:.95rem; }
+
+/* hero */
+.hero{ padding-block:var(--pp-space-xl) var(--pp-space-2xl); }
+.hero-grid{ display:grid; grid-template-columns:1fr 1fr; gap:var(--pp-space-xl); align-items:center; }
+.tagline{ font-family:var(--pp-font-heading); font-size:2rem; font-style:italic;
+          color:var(--pp-pollen-ink); margin:var(--pp-space-2xs) 0 var(--pp-space-sm); }
+.btn-row{ display:flex; flex-wrap:wrap; gap:var(--pp-space-2xs); margin-top:var(--pp-space-md); }
+.btn{ display:inline-block; font-family:var(--pp-font-code); font-size:.88rem; text-decoration:none;
+      padding:var(--pp-space-2xs) var(--pp-space-sm); border-radius:var(--pp-radius-sm);
+      transition:transform var(--pp-dur-micro) var(--pp-ease-petal); }
+.btn:hover{ transform:translateY(-1px); }
+.btn-go{ background:var(--pp-accent); color:#3A2718; font-weight:500; }
+.btn-quiet{ background:transparent; color:var(--pp-text); border:var(--pp-stroke-hairline) solid var(--pp-border); }
+
+/* terminal — soil-night, fixed family surface */
+.term{ background:var(--pp-term-bg); color:var(--pp-term-text); border:var(--pp-stroke-hairline) solid var(--pp-term-border);
+       border-radius:var(--pp-radius-lg); box-shadow:var(--pp-shadow-float); overflow:hidden; }
+.term-bar{ display:flex; align-items:center; gap:var(--pp-space-3xs);
+           padding:var(--pp-space-3xs) var(--pp-space-2xs);
+           border-bottom:var(--pp-stroke-hairline) solid var(--pp-term-border);
+           font-family:var(--pp-font-code); font-size:.72rem; color:var(--pp-term-text); opacity:.7; }
+.term-dot{ width:8px; height:8px; border-radius:var(--pp-radius-full); background:var(--pp-term-border); }
+.term pre{ margin:0; padding:var(--pp-space-sm); font-family:var(--pp-font-code); font-size:.8rem;
+           line-height:1.75; overflow-x:auto; }
+.t-prompt{ color:var(--pp-term-green); }
+.t-dim{ color:var(--pp-term-text); opacity:.62; }
+.t-ring{ color:var(--pp-term-sun); }
+.t-ok{ color:var(--pp-term-green); }
+
+/* cards */
+.cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--pp-space-sm); margin-top:var(--pp-space-lg); }
+.card{ background:var(--pp-surface); border:var(--pp-stroke-hairline) solid var(--pp-border);
+       border-radius:var(--pp-radius-lg); padding:var(--pp-space-sm); box-shadow:var(--pp-shadow-rest); }
+.card h3{ font-size:1.25rem; margin-bottom:var(--pp-space-3xs); }
+.card p{ margin:0; font-size:.98rem; color:var(--pp-text-soft); }
+.bloom{ width:10px; height:10px; border-radius:var(--pp-radius-full); display:inline-block;
+        margin-right:var(--pp-space-3xs); vertical-align:middle; }
+
+/* gate */
+.gate{ background:var(--pp-bg-band); }
+.gate-steps{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--pp-space-sm); margin-top:var(--pp-space-lg); }
+.step{ background:var(--pp-bg-artifact); border:var(--pp-stroke-hairline) solid var(--pp-border);
+       border-left:var(--pp-stroke-rule) solid var(--pp-border);
+       border-radius:var(--pp-radius-md); padding:var(--pp-space-sm); }
+.step.is-held{ border-left-color:var(--pp-caution); }
+.step.is-allowed{ border-left-color:var(--pp-healthy); }
+.step.is-denied{ border-left-color:var(--pp-error); }
+.step h4{ margin-bottom:var(--pp-space-4xs); }
+.step p{ margin:0; font-size:.95rem; color:var(--pp-text-soft); }
+.said{ font-family:var(--pp-font-code); font-size:.78rem; display:block;
+       margin-top:var(--pp-space-3xs); color:var(--pp-text); }
+
+/* modes */
+.modes{ display:grid; grid-template-columns:repeat(3,1fr); gap:var(--pp-space-sm); margin-top:var(--pp-space-lg); }
+.mode code{ display:block; font-size:.82rem; color:var(--pp-pollen-ink); margin-bottom:var(--pp-space-3xs); }
+.mode p{ margin:0; font-size:.98rem; color:var(--pp-text-soft); }
+
+/* start */
+.start{ background:var(--pp-bg-band); border-top:var(--pp-stroke-hairline) solid var(--pp-border); }
+.start .term{ margin-top:var(--pp-space-md); }
+
+/* garden footer · shared family surface — identical on every page; never re-tint to the product accent */
+.gf          { background: var(--pp-forest); color: var(--pp-term-text); }
+.gf-wrap     { max-width: var(--pp-container-max); margin: 0 auto;
+               padding: var(--pp-space-xl) var(--pp-gutter) var(--pp-space-lg); }
+.gf a        { color: var(--pp-term-green); }
+.gf a:hover  { color: var(--pp-term-text); }
+.gf h4       { color: var(--pp-term-text); font-size: 1.05rem; margin: 0 0 var(--pp-space-xs); }
+.gf .wordmark{ font-family: var(--pp-font-heading); font-weight: 600; color: var(--pp-term-text); }
+.gf .mark    { width: 28px; height: 28px; flex: none; }
+.gf .m-stem  { fill: none; stroke: var(--pp-term-green); stroke-width: 2; stroke-linecap: round; }
+.gf .m-leaf  { fill: var(--pp-term-green); }
+.gf .m-bloom { fill: var(--pp-accent); }
+.gf-plot     { display: flex; flex-wrap: wrap; align-items: center; gap: var(--pp-space-2xs) var(--pp-space-md);
+               padding-bottom: var(--pp-space-md); margin-bottom: var(--pp-space-lg);
+               border-bottom: 1px solid rgba(243,236,217,.14); }
+.gf-plotbrand{ display: inline-flex; align-items: center; gap: var(--pp-space-3xs); }
+.gf-plotbrand .wordmark { font-size: 1.45rem; letter-spacing: -.01em; }
+.gf-plotline { margin: 0; flex: 1; min-width: 18ch; color: var(--pp-term-text); opacity: .8; font-size: 1rem; }
+.gf-plotlink { font-family: var(--pp-font-code); font-size: .82rem; white-space: nowrap; }
+.gf-grid     { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: var(--pp-space-xl); }
+.gf-soft     { margin: var(--pp-space-2xs) 0 0; color: var(--pp-term-text); opacity: .78;
+               font-size: .95rem; max-width: 42ch; }
+.gf-garden   { display: flex; flex-wrap: wrap; gap: var(--pp-space-3xs); }
+.gf-garden a { display: inline-flex; align-items: center; gap: var(--pp-space-4xs);
+               font-family: var(--pp-font-code); font-size: .82rem; color: var(--pp-term-text);
+               padding: var(--pp-space-4xs) var(--pp-space-2xs);
+               border-radius: var(--pp-radius-full); background: rgba(243,236,217,.07); }
+.gf-garden a:hover      { background: rgba(243,236,217,.14); }
+.gf-garden a.is-current { background: color-mix(in srgb, var(--bloom) 18%, transparent); }
+.gf-dot      { width: 8px; height: 8px; border-radius: var(--pp-radius-full);
+               background: var(--bloom); flex: none; }
+.gf-bottom   { margin-top: var(--pp-space-xl); padding-top: var(--pp-space-sm);
+               border-top: 1px solid rgba(243,236,217,.14); display: flex; flex-wrap: wrap;
+               gap: var(--pp-space-3xs); justify-content: space-between;
+               font-family: var(--pp-font-code); font-size: .74rem;
+               color: var(--pp-term-text); opacity: .72; }
+
+@media (max-width: 880px){
+  .hero-grid{ grid-template-columns:1fr; }
+  .cards,.gate-steps,.modes{ grid-template-columns:1fr; }
+  .gf-grid { grid-template-columns: 1fr; gap: var(--pp-space-lg); }
+}
+@media (max-width: 520px){
+  html{ font-size:17px; }
+  section{ padding-block:var(--pp-space-xl); }
+  .term pre{ font-size:.72rem; }
+}
+@media (prefers-reduced-motion: reduce){
+  html{ scroll-behavior:auto; }
+  *{ animation:none !important; transition:none !important; }
+  .btn:hover{ transform:none; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 32 32" role="img" aria-label="pollen">
+        <path d="M13.6 29 C13.2 25.2, 11.2 21, 7.4 18.4" fill="none" stroke="var(--pp-primary)" stroke-width="2.1" stroke-linecap="round"/>
+        <path d="M18.4 29 C18.9 25.2, 21.2 21.4, 24.9 19.2" fill="none" stroke="var(--pp-primary)" stroke-width="2.1" stroke-linecap="round"/>
+        <circle cx="6.4" cy="15.8" r="3.1" fill="var(--pp-pollen)"/>
+        <circle cx="26" cy="16.7" r="3.1" fill="var(--pp-pollen)"/>
+        <circle cx="12.6" cy="10.6" r="1.4" fill="var(--pp-pollen)"/>
+        <circle cx="18.8" cy="9.2" r="2.2" fill="var(--pp-pollen)"/>
+      </svg>
+      <span>pollen</span>
+    </a>
+    <nav aria-label="sections">
+      <a href="#channel">the channel</a>
+      <a href="#gate">the gate</a>
+      <a href="#start">install</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <p class="kicker">peer messaging for agents</p>
+      <h1>pollen</h1>
+      <p class="tagline">carry what matters.</p>
+      <p class="lede">One agent asks another a question and uses the answer, without a
+        supervisor having to relay it. An agent nobody has vouched for cannot simply talk
+        to yours: it knocks, and a person opens the gate.</p>
+      <p class="lede">One file of Node. No dependencies. Any MCP host.</p>
+      <div class="btn-row">
+        <a class="btn btn-go" href="#start">install pollen</a>
+        <a class="btn btn-quiet" href="https://github.com/jahala/pollen">read the source</a>
+      </div>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+        <span>sorrel · two peers and a stranger</span></div>
+<pre><span class="t-dim">brack sends, and is told what actually happened</span>
+<span class="t-prompt">$</span> pollen_send to sorrel
+  <span class="t-ok">Sent to sorrel.</span>
+
+<span class="t-dim">thistle is not vouched for</span>
+<span class="t-prompt">$</span> pollen_send to sorrel
+  Held at sorrel's trust gate — sorrel must
+  allow "thistle" before this is delivered.
+
+<span class="t-dim">sorrel's watcher rings, one line per arrival</span>
+<span class="t-ring">[pollen]</span> message from brack — pollen_inbox to
+        read: schema is frozen — migration 0007
+        is the last one before the cut
+<span class="t-ring">[pollen]</span> thistle is knocking — pollen_allow
+        or pollen_deny
+
+<span class="t-prompt">$</span> pollen_inbox
+  [brack]: schema is frozen — migration 0007
+  is the last one before the cut
+
+<span class="t-prompt">$</span> pollen_deny thistle
+  Denied and dropped message from thistle.</pre>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="channel">
+  <div class="wrap">
+    <p class="kicker">where it sits</p>
+    <h2>The sideways channel</h2>
+    <p class="lede">umbel and pleach both speak down the tree. pollen speaks across it.</p>
+    <div class="cards">
+      <div class="card">
+        <h3><span class="bloom" style="background:var(--pp-umbel)"></span>umbel</h3>
+        <p>Fans workers out from one stem and holds each of them steady. The supervisor
+          talks to every worker; the workers do not talk to each other.</p>
+      </div>
+      <div class="card">
+        <h3><span class="bloom" style="background:var(--pp-pleach)"></span>pleach</h3>
+        <p>Interweaves the branches — conducts a plan through gates, deciding what is done
+          and what goes next. Direction still flows downward.</p>
+      </div>
+      <div class="card">
+        <h3><span class="bloom" style="background:var(--pp-pollen)"></span>pollen</h3>
+        <p>What growers say to each other. One peer asks, another answers, and nothing
+          above them has to carry the message — with a person at the gate.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="gate" class="gate">
+  <div class="wrap">
+    <p class="kicker">the gate</p>
+    <h2>Strangers knock; you decide.</h2>
+    <p class="lede">Messaging between autonomous programs is only safe when a person decides
+      who is let in. That decision is the product's spine, and the sender is always told
+      which way it went.</p>
+    <div class="gate-steps">
+      <div class="step is-held">
+        <h4>held</h4>
+        <p>An unvouched peer is stopped at the gate. Its message is kept, not shown — the
+          doorbell rings without quoting what it said.
+          <span class="said">Held at sorrel's trust gate — sorrel must allow "thistle" before this is delivered.</span></p>
+      </div>
+      <div class="step is-allowed">
+        <h4>allowed</h4>
+        <p>A person opens the gate and every knock that peer made is delivered, oldest
+          first — a follow-up never destroys the message it was asking about.
+          <span class="said">Allowed thistle. Their message has been delivered.</span></p>
+      </div>
+      <div class="step is-denied">
+        <h4>denied</h4>
+        <p>The message is dropped and never rung out. Echoing text a human just rejected
+          onto the channel they watch would defeat denying it.
+          <span class="said">Denied and dropped message from thistle.</span></p>
+      </div>
+    </div>
+    <p style="margin-top:var(--pp-space-lg)">A held knock survives a restart: the gate is
+      rebuilt from the journal, so something you were rung about is still there to answer.
+      Pre-approve the peers you already trust with <code>POLLEN_ALLOW</code>.</p>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <p class="kicker">how it works</p>
+    <h2>One file, three modes</h2>
+    <p class="lede">Raw MCP over stdio, no SDK. Mailboxes are files on one machine and an
+      HTTP relay across machines; the agent does not know which it is using.</p>
+    <div class="modes">
+      <div class="card mode">
+        <code>node pollen.mjs</code>
+        <p>The MCP server your host spawns. Five tools: send, agents, inbox, allow, deny.</p>
+      </div>
+      <div class="card mode">
+        <code>node pollen.mjs --relay</code>
+        <p>An HTTP hop between machines, over any tunnel or VPN. It forwards; it holds
+          nothing.</p>
+      </div>
+      <div class="card mode">
+        <code>node pollen.mjs --watch id</code>
+        <p>The doorbell. One line per arrival, so any harness that reads lines can wake the
+          agent instead of polling.</p>
+      </div>
+    </div>
+    <p style="margin-top:var(--pp-space-lg)">Every arrival is written to an append-only
+      journal before the mailbox file is removed, and a cursor records how far the agent has
+      read. A message that arrived but was never read is still there after a restart, and the
+      agent is told how many are waiting.</p>
+  </div>
+</section>
+
+<section id="start" class="start">
+  <div class="wrap">
+    <p class="kicker">install</p>
+    <h2>Put it in your agent's hands</h2>
+    <p>One file to fetch, one block of config. Node 18 or newer, nothing else.</p>
+    <div class="term">
+      <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+        <span>install</span></div>
+<pre><span class="t-prompt">$</span> curl -O https://raw.githubusercontent.com/jahala/pollen/main/pollen.mjs
+
+<span class="t-dim"># then, in .mcp.json</span>
+{
+  "mcpServers": {
+    "pollen": {
+      "command": "node",
+      "args": ["./pollen.mjs"],
+      "env": { "POLLEN_ID": "my-agent" }
+    }
+  }
+}</pre>
+    </div>
+    <p style="margin-top:var(--pp-space-md)">Then run the doorbell as a background task:
+      <code>node pollen.mjs --watch my-agent</code>. Full options and the environment table
+      are in the <a href="https://github.com/jahala/pollen">README</a>.</p>
+  </div>
+</section>
+
+</main>
+
+<!-- garden footer · shared family surface. swap ONLY: (1) the identity column, (2) the .is-current pill, (3) the repo links -->
+<footer class="gf">
+  <div class="gf-wrap">
+
+    <!-- 0 · plotplot band — same on every product page; links home. (the umbrella page omits this) -->
+    <div class="gf-plot">
+      <a class="gf-plotbrand" href="https://plotplot.ai" aria-label="plotplot home">
+        <svg class="mark" viewBox="0 0 28 28" aria-hidden="true">
+          <path class="m-stem" d="M14 26 V12"/>
+          <path class="m-leaf" d="M14 18.5 C9 17.5 6 13.5 6.6 9 C11 9.8 14 13.2 14 18.5 Z"/>
+          <path class="m-leaf" d="M14 15.5 C19 14.5 22 10.5 21.4 6 C17 6.8 14 10.2 14 15.5 Z"/>
+          <circle class="m-bloom" cx="14" cy="8" r="3"/>
+        </svg>
+        <span class="wordmark">plotplot</span>
+      </a>
+      <p class="gf-plotline">a garden of small, sharp tools for building with AI.</p>
+      <a class="gf-plotlink" href="https://plotplot.ai">plotplot.ai →</a>
+    </div>
+
+    <div class="gf-grid">
+
+      <!-- 1 · identity — per product -->
+      <div class="gf-col">
+        <h4>pollen</h4>
+        <p class="gf-soft">peer messaging between agents — one asks, another answers, and a person decides who is let in.</p>
+        <p class="gf-soft"><a href="https://github.com/jahala/pollen">github →</a> &nbsp;·&nbsp; MIT</p>
+      </div>
+
+      <!-- 2 · the garden — identical on every page; add .is-current to THIS product -->
+      <div class="gf-col">
+        <h4>the plotplot garden</h4>
+        <nav class="gf-garden" aria-label="the garden">
+          <a href="https://github.com/jahala/tilth"  style="--bloom:var(--pp-tilth)"><span class="gf-dot"></span>tilth</a>
+          <a href="https://github.com/jahala/tend"   style="--bloom:var(--pp-tend)"><span class="gf-dot"></span>tend</a>
+          <a href="https://github.com/jahala/petals" style="--bloom:var(--pp-petals)"><span class="gf-dot"></span>petals</a>
+          <a href="https://github.com/jahala/pleach" style="--bloom:var(--pp-pleach)"><span class="gf-dot"></span>pleach</a>
+          <a href="https://github.com/jahala/umbel"  style="--bloom:var(--pp-umbel)"><span class="gf-dot"></span>umbel</a>
+          <a href="https://github.com/jahala/copeca" style="--bloom:var(--pp-copeca)"><span class="gf-dot"></span>copeca</a>
+          <a href="https://github.com/jahala/pollen" style="--bloom:var(--pp-pollen)" class="is-current"><span class="gf-dot"></span>pollen</a>
+        </nav>
+        <p class="gf-soft">small, sharp tools for building with agents.</p>
+      </div>
+
+      <!-- 3 · nearby — optional; drop the whole column if there's nothing -->
+      <div class="gf-col">
+        <h4>nearby</h4>
+        <p class="gf-soft"><a href="https://github.com/jahala/umbel">umbel</a> — fan many agent CLIs out from one stem.</p>
+        <p class="gf-soft"><a href="https://buymeacoffee.com/jahala">buy me a coffee →</a></p>
+      </div>
+
+    </div>
+    <div class="gf-bottom">
+      <span>© 2026 · a plotplot garden tool · MIT</span>
+      <span>strangers knock; you decide.</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
