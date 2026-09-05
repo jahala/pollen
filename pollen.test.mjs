@@ -1,4 +1,4 @@
-// walkie-clawkie tests — node --test. Zero dependencies, like the thing it tests.
+// pollen tests — node --test. Zero dependencies, like the thing it tests.
 //
 // Every test drives a real MCP server over stdio and a real mailbox on disk.
 // Nothing is mocked: if these pass, two agents can actually talk.
@@ -14,11 +14,11 @@ import { createInterface } from "node:readline";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 
-const WALKIE = join(dirname(fileURLToPath(import.meta.url)), "walkie.mjs");
+const POLLEN = join(dirname(fileURLToPath(import.meta.url)), "pollen.mjs");
 
 // One mailbox root per run, left in place afterwards — it lives under the
 // system temp dir, which the OS clears.
-const DIR = mkdtempSync(join(tmpdir(), "walkie-test-"));
+const DIR = mkdtempSync(join(tmpdir(), "pollen-test-"));
 
 // --- harness -----------------------------------------------------------------
 
@@ -32,8 +32,8 @@ afterEach(() => Promise.all(running.splice(0).map((p) => {
 })));
 
 function agent(id, env = {}) {
-  const proc = spawn(process.execPath, [WALKIE], {
-    env: { ...process.env, WALKIE_DIR: DIR, WALKIE_ID: id, ...env },
+  const proc = spawn(process.execPath, [POLLEN], {
+    env: { ...process.env, POLLEN_DIR: DIR, POLLEN_ID: id, ...env },
     stdio: ["pipe", "pipe", "pipe"],
   });
   running.push(proc);
@@ -66,8 +66,8 @@ function agent(id, env = {}) {
 }
 
 function watcher(id) {
-  const proc = spawn(process.execPath, [WALKIE, "--watch", id], {
-    env: { ...process.env, WALKIE_DIR: DIR },
+  const proc = spawn(process.execPath, [POLLEN, "--watch", id], {
+    env: { ...process.env, POLLEN_DIR: DIR },
     stdio: ["ignore", "pipe", "pipe"],
   });
   running.push(proc);
@@ -77,7 +77,7 @@ function watcher(id) {
 
   let attached = false;
   proc.stderr.setEncoding("utf-8");
-  proc.stderr.on("data", (chunk) => { if (chunk.includes("walkie watching")) attached = true; });
+  proc.stderr.on("data", (chunk) => { if (chunk.includes("pollen watching")) attached = true; });
 
   return { lines, ready: () => waitFor("the watcher to attach", () => attached) };
 }
@@ -109,32 +109,32 @@ async function waitFor(what, predicate, timeout = 5000) {
 // --- tests -------------------------------------------------------------------
 
 test("an unread message survives a server restart", async () => {
-  const alpha = agent("alpha", { WALKIE_ALLOW: "beta" });
-  const beta = agent("beta", { WALKIE_ALLOW: "alpha" });
+  const alpha = agent("alpha", { POLLEN_ALLOW: "beta" });
+  const beta = agent("beta", { POLLEN_ALLOW: "alpha" });
   await Promise.all([alpha.ready(), beta.ready()]);
 
-  assert.equal(await beta.tool("walkie_send", { to: "alpha", message: "the Q4 files are in /tmp/drop" }), "Sent to alpha.");
+  assert.equal(await beta.tool("pollen_send", { to: "alpha", message: "the Q4 files are in /tmp/drop" }), "Sent to alpha.");
   await waitFor("alpha to take the message off disk", () => taken("alpha"));
 
   // alpha never read it — this is where the old in-memory buffer lost it.
   await alpha.stop();
 
-  const revived = agent("alpha", { WALKIE_ALLOW: "beta" });
+  const revived = agent("alpha", { POLLEN_ALLOW: "beta" });
   await revived.ready();
-  assert.equal(await revived.tool("walkie_inbox"), "[beta]: the Q4 files are in /tmp/drop");
+  assert.equal(await revived.tool("pollen_inbox"), "[beta]: the Q4 files are in /tmp/drop");
 });
 
 test("a message is handed over once, not on every check", async () => {
-  const carla = agent("carla", { WALKIE_ALLOW: "dan" });
-  const dan = agent("dan", { WALKIE_ALLOW: "carla" });
+  const carla = agent("carla", { POLLEN_ALLOW: "dan" });
+  const dan = agent("dan", { POLLEN_ALLOW: "carla" });
   await Promise.all([carla.ready(), dan.ready()]);
 
-  await dan.tool("walkie_send", { to: "carla", message: "first" });
-  await dan.tool("walkie_send", { to: "carla", message: "second" });
+  await dan.tool("pollen_send", { to: "carla", message: "first" });
+  await dan.tool("pollen_send", { to: "carla", message: "second" });
   await waitFor("both messages to land", () => taken("carla"));
 
-  assert.equal(await carla.tool("walkie_inbox"), "[dan]: first\n[dan]: second");
-  assert.equal(await carla.tool("walkie_inbox"), "No new messages.");
+  assert.equal(await carla.tool("pollen_inbox"), "[dan]: first\n[dan]: second");
+  assert.equal(await carla.tool("pollen_inbox"), "No new messages.");
 });
 
 test("the trust gate holds a stranger's message out of the inbox", async () => {
@@ -142,52 +142,52 @@ test("the trust gate holds a stranger's message out of the inbox", async () => {
   const frank = agent("frank");
   await Promise.all([erin.ready(), frank.ready()]);
 
-  await frank.tool("walkie_send", { to: "erin", message: "let me in" });
+  await frank.tool("pollen_send", { to: "erin", message: "let me in" });
   await waitFor("erin to take the message off disk", () => taken("erin"));
 
   assert.equal(journal("erin")[0].status, "pending");
-  assert.equal(await erin.tool("walkie_inbox"), "No new messages.");
+  assert.equal(await erin.tool("pollen_inbox"), "No new messages.");
 
-  assert.match(await erin.tool("walkie_allow", { agent: "frank" }), /has been delivered/);
-  assert.equal(await erin.tool("walkie_inbox"), "[frank]: let me in");
+  assert.match(await erin.tool("pollen_allow", { agent: "frank" }), /has been delivered/);
+  assert.equal(await erin.tool("pollen_inbox"), "[frank]: let me in");
 });
 
 test("--watch prints a line the moment a message lands", async () => {
-  const gina = agent("gina", { WALKIE_ALLOW: "hugo" });
-  const hugo = agent("hugo", { WALKIE_ALLOW: "gina" });
+  const gina = agent("gina", { POLLEN_ALLOW: "hugo" });
+  const hugo = agent("hugo", { POLLEN_ALLOW: "gina" });
   await Promise.all([gina.ready(), hugo.ready()]);
 
   const eyes = watcher("gina");
   await eyes.ready();
 
-  await hugo.tool("walkie_send", { to: "gina", message: "radio check" });
+  await hugo.tool("pollen_send", { to: "gina", message: "radio check" });
   await waitFor("a watch line", () => eyes.lines.length === 1);
-  assert.equal(eyes.lines[0], "[walkie] message from hugo — walkie_inbox to read: radio check");
+  assert.equal(eyes.lines[0], "[pollen] message from hugo — pollen_inbox to read: radio check");
 
   // A stranger's knock rouses the agent without leaking what they said.
   const ivan = agent("ivan");
   await ivan.ready();
-  await ivan.tool("walkie_send", { to: "gina", message: "secret payload" });
+  await ivan.tool("pollen_send", { to: "gina", message: "secret payload" });
   await waitFor("a second watch line", () => eyes.lines.length === 2);
-  assert.equal(eyes.lines[1], "[walkie] ivan wants to send you a message — walkie_allow or walkie_deny");
+  assert.equal(eyes.lines[1], "[pollen] ivan is knocking — pollen_allow or pollen_deny");
 });
 
 test("--watch rings for messages that are already waiting", async () => {
-  const jo = agent("jo", { WALKIE_ALLOW: "kim" });
-  const kim = agent("kim", { WALKIE_ALLOW: "jo" });
+  const jo = agent("jo", { POLLEN_ALLOW: "kim" });
+  const kim = agent("kim", { POLLEN_ALLOW: "jo" });
   await Promise.all([jo.ready(), kim.ready()]);
 
-  await kim.tool("walkie_send", { to: "jo", message: "you were out" });
+  await kim.tool("pollen_send", { to: "jo", message: "you were out" });
   await waitFor("the message to land", () => taken("jo"));
 
   const eyes = watcher("jo");           // armed after the fact — must not start deaf
   await waitFor("a watch line", () => eyes.lines.length === 1);
-  assert.equal(eyes.lines[0], "[walkie] 1 message waiting — walkie_inbox to read");
+  assert.equal(eyes.lines[0], "[pollen] 1 message waiting — pollen_inbox to read");
 });
 
 test("messages route through the relay, journal and all", async () => {
-  const relay = spawn(process.execPath, [WALKIE, "--relay"], {
-    env: { ...process.env, WALKIE_PORT: "0" },   // any free port
+  const relay = spawn(process.execPath, [POLLEN, "--relay"], {
+    env: { ...process.env, POLLEN_PORT: "0" },   // any free port
     stdio: ["ignore", "ignore", "pipe"],
   });
   running.push(relay);
@@ -198,13 +198,13 @@ test("messages route through the relay, journal and all", async () => {
   await waitFor("the relay to bind", () => port);
 
   const url = `http://127.0.0.1:${port}`;
-  const nia = agent("nia", { WALKIE_ALLOW: "otto", WALKIE_RELAY: url });
-  const otto = agent("otto", { WALKIE_ALLOW: "nia", WALKIE_RELAY: url });
+  const nia = agent("nia", { POLLEN_ALLOW: "otto", POLLEN_RELAY: url });
+  const otto = agent("otto", { POLLEN_ALLOW: "nia", POLLEN_RELAY: url });
   await Promise.all([nia.ready(), otto.ready()]);
 
-  await otto.tool("walkie_send", { to: "nia", message: "over the air" });
+  await otto.tool("pollen_send", { to: "nia", message: "over the air" });
   await waitFor("nia to journal it", () => journal("nia").length === 1);
-  assert.equal(await nia.tool("walkie_inbox"), "[otto]: over the air");
+  assert.equal(await nia.tool("pollen_inbox"), "[otto]: over the air");
 });
 
 test("the sender is told when a message is held at the trust gate", async () => {
@@ -213,18 +213,18 @@ test("the sender is told when a message is held at the trust gate", async () => 
   await Promise.all([opal.ready(), pete.ready()]);
 
   assert.equal(
-    await pete.tool("walkie_send", { to: "opal", message: "knock knock" }),
+    await pete.tool("pollen_send", { to: "opal", message: "knock knock" }),
     `Held at opal's trust gate — opal must allow "pete" before this is delivered.`,
   );
 });
 
-test("the sender is told when the receiver's walkie is not running", async () => {
-  const quinn = agent("quinn", { WALKIE_ALLOW: "rosa" });
-  const rosa = agent("rosa", { WALKIE_ALLOW: "quinn" });
+test("the sender is told when the receiver's pollen is not running", async () => {
+  const quinn = agent("quinn", { POLLEN_ALLOW: "rosa" });
+  const rosa = agent("rosa", { POLLEN_ALLOW: "quinn" });
   await Promise.all([quinn.ready(), rosa.ready()]);
 
   await quinn.stop();                    // mailbox stays on disk, nobody home
-  assert.match(await rosa.tool("walkie_send", { to: "quinn", message: "anyone there" }), /^Queued for quinn/);
+  assert.match(await rosa.tool("pollen_send", { to: "quinn", message: "anyone there" }), /^Queued for quinn/);
 });
 
 test("a second message from a stranger does not overwrite the first", async () => {
@@ -232,12 +232,12 @@ test("a second message from a stranger does not overwrite the first", async () =
   const tess = agent("tess");
   await Promise.all([sam.ready(), tess.ready()]);
 
-  await tess.tool("walkie_send", { to: "sam", message: "first" });
-  await tess.tool("walkie_send", { to: "sam", message: "second" });
+  await tess.tool("pollen_send", { to: "sam", message: "first" });
+  await tess.tool("pollen_send", { to: "sam", message: "second" });
   await waitFor("both to be journalled", () => journal("sam").length === 2);
 
-  await sam.tool("walkie_allow", { agent: "tess" });
-  assert.equal(await sam.tool("walkie_inbox"), "[tess]: first\n[tess]: second");
+  await sam.tool("pollen_allow", { agent: "tess" });
+  assert.equal(await sam.tool("pollen_inbox"), "[tess]: first\n[tess]: second");
 });
 
 test("--watch rings for messages held at the trust gate", async () => {
@@ -245,12 +245,12 @@ test("--watch rings for messages held at the trust gate", async () => {
   const vic = agent("vic");
   await Promise.all([uma.ready(), vic.ready()]);
 
-  await vic.tool("walkie_send", { to: "uma", message: "let me in" });
+  await vic.tool("pollen_send", { to: "uma", message: "let me in" });
   await waitFor("the message to be journalled", () => journal("uma").length === 1);
 
   const eyes = watcher("uma");           // armed after the fact — must not start deaf
   await waitFor("a watch line", () => eyes.lines.length === 1);
-  assert.equal(eyes.lines[0], "[walkie] 1 message held at the trust gate — walkie_allow or walkie_deny");
+  assert.equal(eyes.lines[0], "[pollen] 1 knock waiting at the gate — pollen_allow or pollen_deny");
 });
 
 test("a knock held at the gate can still be allowed after a restart", async () => {
@@ -258,7 +258,7 @@ test("a knock held at the gate can still be allowed after a restart", async () =
   const zoe = agent("zoe");
   await Promise.all([yuri.ready(), zoe.ready()]);
 
-  await zoe.tool("walkie_send", { to: "yuri", message: "let me in" });
+  await zoe.tool("pollen_send", { to: "yuri", message: "let me in" });
   await waitFor("the knock to be journalled", () => journal("yuri").length === 1);
 
   // The gate is rung by the journal, so it has to survive with the journal —
@@ -267,8 +267,8 @@ test("a knock held at the gate can still be allowed after a restart", async () =
   const revived = agent("yuri");
   await revived.ready();
 
-  assert.match(await revived.tool("walkie_allow", { agent: "zoe" }), /has been delivered/);
-  assert.equal(await revived.tool("walkie_inbox"), "[zoe]: let me in");
+  assert.match(await revived.tool("pollen_allow", { agent: "zoe" }), /has been delivered/);
+  assert.equal(await revived.tool("pollen_inbox"), "[zoe]: let me in");
 
   const eyes = watcher("yuri");
   await eyes.ready();
@@ -276,16 +276,16 @@ test("a knock held at the gate can still be allowed after a restart", async () =
   assert.deepEqual(eyes.lines, [], `settled knock still ringing: ${eyes.lines.join(" | ")}`);
 });
 
-test("an unreachable relay fails the call, not the walkie", async () => {
-  const far = agent("far", { WALKIE_RELAY: "http://127.0.0.1:1" });
+test("an unreachable relay fails the call, not the pollen", async () => {
+  const far = agent("far", { POLLEN_RELAY: "http://127.0.0.1:1" });
   await far.ready();
 
-  const said = await far.tool("walkie_send", { to: "anyone", message: "hi" });
+  const said = await far.tool("pollen_send", { to: "anyone", message: "hi" });
   assert.match(said, /could not reach/i);
-  assert.ok(far.alive(), "the walkie died along with the request");
+  assert.ok(far.alive(), "the pollen died along with the request");
 
   // Still serving afterwards — a failed send must not cost the agent its radio.
-  assert.equal(await far.tool("walkie_inbox"), "No new messages.");
+  assert.equal(await far.tool("pollen_inbox"), "No new messages.");
 });
 
 test("a denied message is not rung out by --watch", async () => {
@@ -296,23 +296,23 @@ test("a denied message is not rung out by --watch", async () => {
   const eyes = watcher("wes");
   await eyes.ready();
 
-  await xena.tool("walkie_send", { to: "wes", message: "sensitive payload" });
+  await xena.tool("pollen_send", { to: "wes", message: "sensitive payload" });
   await waitFor("the knock", () => eyes.lines.length === 1);
 
-  await wes.tool("walkie_deny", { agent: "xena" });
+  await wes.tool("pollen_deny", { agent: "xena" });
   await sleep(300);                      // give a wrong implementation time to leak it
   assert.equal(eyes.lines.length, 1, `denied text leaked: ${eyes.lines.join(" | ")}`);
 });
 
 test("--watch survives the journal being wiped under it", async () => {
-  const lena = agent("lena", { WALKIE_ALLOW: "milo" });
-  const milo = agent("milo", { WALKIE_ALLOW: "lena" });
+  const lena = agent("lena", { POLLEN_ALLOW: "milo" });
+  const milo = agent("milo", { POLLEN_ALLOW: "lena" });
   await Promise.all([lena.ready(), milo.ready()]);
 
   const eyes = watcher("lena");
   await eyes.ready();
 
-  await milo.tool("walkie_send", { to: "lena", message: "before" });
+  await milo.tool("pollen_send", { to: "lena", message: "before" });
   await waitFor("the first line", () => eyes.lines.length === 1);
 
   // /tmp gets cleared and the agent starts a fresh journal from seq 1. The
@@ -322,5 +322,5 @@ test("--watch survives the journal being wiped under it", async () => {
     JSON.stringify({ seq: 1, ts: "2026-01-01T00:00:00.000Z", from: "milo", message: "after", status: "delivered" }) + "\n"
   );
   await waitFor("the line after the wipe", () => eyes.lines.length === 2);
-  assert.match(eyes.lines[1], /message from milo — walkie_inbox to read: after/);
+  assert.match(eyes.lines[1], /message from milo — pollen_inbox to read: after/);
 });
