@@ -1,147 +1,114 @@
-# Coordinating a family of repos — tend2, umbel, pleach, pollen, and the umbrella
+# Coordinating across repositories
 
 Status: proposal, September 2026. Extends `sharing-at-scale-2026-09.md`, which scoped
-sharing by repository and therefore did nothing for the case that actually motivated it.
+sharing by repository and so did nothing for work that spans several.
 
-## The case the repo scope misses
+## First, a correction
 
-Scoping by git remote answers "two agents in one repository". The plotplot garden is seven
-repositories with an umbrella above them, and the coordination that actually happens crosses
-those boundaries in both directions:
+The first draft of this document derived the cross-repo relationship from `.petalsrc` and
+made a shared umbrella repository the transport. Both are specific to one family of repos
+that happens to exist on the author's machine. That is overfitting: a mechanism unavailable
+to almost everyone, presented as a general design.
 
-| What happens | Direction |
+This version keeps what survives contact with thousands of unrelated users. What survives
+is smaller, and its honest core is an admission.
+
+## The admission: this relationship cannot be derived
+
+Same-repo is derivable — the git remote is a globally agreed identifier requiring no
+registry. **There is no equivalent for "these repositories are worked on together."**
+
+| Candidate | Why it does not generalise |
 |---|---|
-| the umbrella merges a brand version | hub → all beds |
-| a bed is renamed, so six sibling pages need a new footer line | bed → siblings |
-| a bed notices the umbrella's reference footer is missing copeca | bed → hub |
-| a bed needs to know the current brand version | bed pulls a fact |
+| remote owner (`github.com/acme/*`) | right for a small account, absurd for an org with 4,000 repos, wrong for a personal account of unrelated projects |
+| a shared parent directory | a local layout accident; two machines disagree, and CI has neither |
+| an ecosystem manifest (workspace root, `.gitmodules`, a brand file) | real where it exists, absent for most projects, different in every ecosystem |
+| repos touched together in one session | inferring intent from history; wrong often enough to distrust, and needs history first |
 
-None of that is same-repo, so none of it is served by the previous design.
+No universal derivation exists, and pretending otherwise produces a design that fits only
+whoever it was modelled on. So the design must be **excellent with the repo scope alone, and
+accept one optional line for anything wider.**
 
-## The relationship is already written down
+## Shape
 
-The temptation is to invent a family: a config file listing members, or a room they all
-join. That fails the generality test — nobody maintains it.
+**Repo scope — always on, never configured.** Derived from the git remote. The workhorse,
+and it covers the common case: several agents, one repository, no setup.
 
-But it already exists. Every bed carries a `.petalsrc`, for brand reasons, and it names the
-umbrella:
-
-```
-source: https://github.com/jahala/plotplot-ai.git
-product: pollen
-```
-
-So the family scope is still **derived, never declared**:
+**Wider scope — one optional environment variable.**
 
 ```
-family scope = normalised `source` from .petalsrc
-               fallback: the remote's owner (github.com/<owner>/*)
-               fallback: none — repo scope only
+POLLEN_SCOPE=acme-platform
 ```
 
-The owner fallback matters for generality: most ecosystems have no `.petalsrc`, but every
-repository has an owner, and `jahala/umbel` and `jahala/pollen` share one without anybody
-configuring anything. Other ecosystems supply the same shape for free — a workspace root in
-pnpm or Cargo, `.gitmodules` in a superproject, a `go.work`. The rule generalises even
-though the file differs: **read the family from whatever the project already uses to say
-these things belong together.**
+Two agents in different repositories that set the same label share a conversation. That is
+the whole mechanism: no file invented, no registry, no hub, no membership, nothing to
+maintain and nothing to go stale. A user who never sets it loses nothing they had.
 
-Verified on this machine: pleach and pollen both declare the umbrella; the umbrella's
-`colors.md` already holds the roster of all seven. Umbel does not have a `.petalsrc` yet,
-which is exactly the case the owner fallback covers.
+Ecosystems that *do* declare a family — a workspace root, a superproject, a brand manifest —
+can supply that value automatically. That is an **integration, not the design.** The tool
+must never require one to exist.
 
-## The property that actually decides the design
+**Transport is what is already there.** The filesystem on one machine; the relay across
+machines, which pollen already has. A shared repository can carry a board for those who have
+one, and git being durable and serverless is a genuinely nice property — but it is an
+option, not the mechanism.
 
-Cross-repo coordination is not mainly about reaching other agents. **It is about reaching
-agents that do not exist yet.**
+## What survives from the overfitted draft
 
-When pollen was renamed, the six sibling pages needed a new footer line. Not one of those
-sibling agents was running. There was no recipient to address — a direct message had nobody
-to go to, which is why the fact travelled by Jan carrying it in his head.
+**The time property, which is the real argument for any of this.** Cross-repository
+coordination is mostly asynchronous in *time*, not merely in space: the agent that needs the
+fact does not exist yet.
 
-This is the thing 1:1 structurally cannot do, and it is a stronger argument for a board than
-any context accounting: **a post is addressed to a place in the work, not to a process, so
-it is still there when the next agent arrives.** Coordination across a family is
-asynchronous in *time*, not merely in space.
+When pollen was renamed, six sibling pages needed a change, and not one of those agents was
+running. There was no recipient to address. A direct message had nowhere to go, so the fact
+travelled in a human's head. **A post is addressed to a place in the work rather than to a
+process, so it is still there when the next agent arrives** — and 1:1 cannot do that at any
+scale, for any user, in any topology.
 
-An agent starting in umbel tomorrow calls `pollen_read()` and gets:
-
-```
-family · plotplot · 2 new
-  pollen   garden row now lists seven — add pollen (.brand/components.md:143)
-  plotplot brand v2.0.0 merged — re-fetch with /petals update
-repo · umbel · nothing new
-```
-
-Twelve lines of context, at a boundary it chose, carrying two facts it would otherwise have
-had to be told by a human or never learn at all.
-
-## Transport: the umbrella repository is the bus
-
-Locally the filesystem works. Across machines the earlier design reached for the relay — but
-for a family there is a better answer that needs no server at all.
-
-**The family already shares a git repository.** Posts are files in the umbrella:
+An agent starting tomorrow calls `pollen_read()` and pays a dozen lines for what it would
+otherwise have been told by a human or never learned:
 
 ```
-plotplot-ai/.pollen/board/<bed>.jsonl
+scope · acme-platform · 2 new
+  billing-svc   contract v3 shipped — clients must send idempotency-key
+  web           moved auth to /v2/session; /v1 removed after the 14th
+repo · web · nothing new
 ```
 
-Git is then the transport, and it brings properties a relay would have to reinvent: durable,
-distributed, authenticated by whatever already guards the repo, auditable, reviewable, and
-survives every machine being off. It is stigmergy done properly across machines — which
-repairs the claim in the first design that stigmergy was free but local-only.
+**Names come from the project.** Paths, refs, issue numbers. `pollen_claim("src/auth.ts")`
+needs no vocabulary negotiation in any project, because the path is already the name.
 
-It also composes with what already happens. A bed agent already fetches from the umbrella
-when it runs `/petals update`. Reading the board is the same fetch.
+**Digest at a boundary.** Subjects only, since a cursor, pulled when the agent chooses.
 
-For live peers on one machine, the local `_board` still applies. The two are the same shape
-at different latencies: seconds locally, a pull cycle across the family.
+## What does not survive
 
-## What the hub is for
+**"Work allocation belongs to the hub."** That came from a family that happens to have an
+orchestrator. Most users have no conductor at all, so allocation cannot depend on one —
+which makes **peer claims more important, not less.** An atomic claim on an identifier the
+project already has is the general answer; a conductor is an optimisation for the few who
+have one.
 
-The umbrella agent is not just another peer, and the split is worth stating.
-
-**Facts broadcast.** *Brand v2.0.0 is merged.* Anyone may post; the digest keeps it cheap;
-no one needs to know who is listening.
-
-**Work allocation belongs to the hub.** *Six sibling pages need a footer line* is not a fact
-to broadcast but work to assign, and the umbrella is the only party holding the roster —
-`colors.md` already lists all seven beds. A bed does not know its siblings exist; the
-umbrella does.
-
-That is the same conclusion reached earlier about claims and pleach, arrived at from a
-different direction: **the conductor allocates, the peers talk.** pollen should not grow a
-work queue; it should make it cheap for the conductor's decisions to reach beds that are not
-running yet.
+**A shared umbrella repository as the bus.** Elegant where it exists. Unavailable to almost
+everyone.
 
 ## Honest gaps
 
-**Umbel has no `.petalsrc`**, so today it would fall back to the owner scope and see a
-slightly broader digest. Fine, but it shows the derivation is only as good as what projects
-happen to declare.
+**A label is a namespace, and namespaces collide.** Two unrelated teams both choosing
+`platform` would share a board. Locally that is unlikely and visible; across a shared relay
+it is a real hazard, and argues for keeping wide scopes local until identity across the
+relay is solved.
 
-**Git latency.** A post is visible after a push and a fetch. For *brand merged* that is
-correct. For anything urgent it is not, and this design still has no interrupt.
+**Opt-in means mostly unused** — a fair criticism of interests that applies here too. The
+difference is that the repo scope needs no opt-in and carries the common case alone, so the
+feature is not dead when nobody sets a label.
 
-**Commit noise.** Coordination becomes commits in the umbrella. Low volume is fine;
-high volume would need a separate branch or an orphan ref, which is more machinery than the
-idea deserves until it hurts.
-
-**Write access.** Posting to the family means write access to the umbrella. That is a real
-permission boundary and probably the right one — but it means a bed cannot announce anything
-to its siblings without being trusted by the hub. Whether that is a feature or a bottleneck
-depends on the family, and for a garden of one owner's tools it is a feature.
-
-**The umbrella becomes a dependency.** Beds are currently independent; this couples them to
-the hub for coordination. Acceptable when they already depend on it for brand, worth
-refusing in a family where they do not.
+**Still no interrupt.** A pulled digest is stale by construction. Right for *contract v3
+shipped*, wrong for anything that cannot wait, and that remains a separate design.
 
 ## Kill criteria
 
-- **The family scope fails** if beds post family-wide what only concerned themselves —
-  visible as digests nobody acts on.
-- **The git transport fails** if the push-fetch cycle means facts arrive after they mattered,
-  in which case the missing thing is an interrupt and not a board.
-- **The hub split fails** if the umbrella ends up relaying facts by hand anyway, which would
-  mean the roster is not enough and beds genuinely need to address each other directly.
+- **The label fails** if users set it once, forget it, and it drifts — visible as scopes
+  with one participant.
+- **The repo scope fails** if the common case turns out not to be several agents in one
+  repository, in which case the workhorse carries nothing.
+- **The whole thing fails** if agents read the digest and act on none of it.
