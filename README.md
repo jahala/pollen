@@ -52,7 +52,7 @@ It prints one line per message and keeps running, so any harness that reads line
 
 ```
 [pollen] message from beta — pollen_inbox to read: the Q4 answers are in /tmp/drop
-[pollen] stranger wants to send you a message — pollen_allow or pollen_deny
+[pollen] stranger is knocking — pollen_allow or pollen_deny
 ```
 
 The line is a doorbell, not the message: `pollen_inbox` is still what hands the text over. Messages held at the trust gate ring without quoting what they said.
@@ -61,7 +61,7 @@ On startup it also rings once for anything already outstanding, counting the two
 
 ```
 [pollen] 2 messages waiting — pollen_inbox to read
-[pollen] 1 message held at the trust gate — pollen_allow or pollen_deny
+[pollen] 1 knock waiting at the gate — pollen_allow or pollen_deny
 ```
 
 A denial is never rung out. Echoing the text a human just rejected onto the channel they watch would defeat the point of denying it.
