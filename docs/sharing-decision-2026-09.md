@@ -1,5 +1,19 @@
 # The decision: notes left at places in the work
 
+> **Superseded, September 2026.** The decision below is sound about *what the need is* and
+> wrong about *whose job it is*. Notes are cross-session memory attached to the work — which
+> is `mull`'s remit (cross-session learning) and adjacent to `tend`'s (feature mapping and
+> narration). It is not peer messaging, and pollen should not grow it.
+>
+> The irony is exact: this document rejects subscription channels because they would be "a
+> second product living inside the first", and then designs a memory product inside a
+> messaging tool. Same error, one round later, caught by the owner rather than by me.
+>
+> **pollen builds nothing from this.** It stays 1:1 messages, honest delivery status, the
+> trust gate, the doorbell and the durable journal. What these documents are worth is a
+> written spec for whoever picks up mull — the need is real, the reasoning holds, the home
+> is elsewhere. See `notes-ideation-2026-09.md` for the strongest version of the argument.
+
 Status: **decision**, September 2026. Supersedes the mechanisms in
 `channels-design`, `sharing-implementation`, `sharing-at-scale` and `sharing-across-repos`.
 Those remain as the reasoning trail; this is what to build.
